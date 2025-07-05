@@ -111,8 +111,9 @@ function App() {
               user ? <AdminAnnouncementPage /> : <Navigate to="/login" replace />
             } />
             
-            {/* OAuth callback route */}
+            {/* OAuth callback routes */}
             <Route path="/auth/callback" element={<OAuthCallback />} />
+            <Route path="/auth/v1/callback" element={<OAuthCallback />} />
             
             {/* App routes without Navigation (they have their own sidebar) */}
             <Route path="/glossary" element={
