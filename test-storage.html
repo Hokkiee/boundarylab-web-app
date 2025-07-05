@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Supabase Storage</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Test Supabase Storage</h1>
+    <input type="file" id="fileInput" accept="image/*">
+    <button onclick="testUpload()">Test Upload</button>
+    <div id="output"></div>
+
+    <script>
+        // Your Supabase credentials
+        const supabaseUrl = 'https://ydwemzpbtawiairfysdi.supabase.co'
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlkd2VtenBidGF3aWFpcmZ5c2RpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE0ODk1NjgsImV4cCI6MjA2NzA2NTU2OH0.3WXNxXm5StCf8YSDLM_iF32O2yewp0fhCoAQCOvi8tI'
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey)
+        
+        async function testUpload() {
+            const fileInput = document.getElementById('fileInput')
+            const output = document.getElementById('output')
+            
+            if (!fileInput.files[0]) {
+                output.innerHTML = '<p style="color: red;">Please select a file first</p>'
+                return
+            }
+            
+            const file = fileInput.files[0]
+            console.log('Testing file:', file.name)
+            
+            try {
+                // Test 1: Check if bucket exists
+                const { data: buckets, error: bucketError } = await supabase.storage.listBuckets()
+                console.log('Buckets:', buckets)
+                
+                if (bucketError) {
+                    output.innerHTML = `<p style="color: red;">Error listing buckets: ${bucketError.message}</p>`
+                    return
+                }
+                
+                const forumBucket = buckets.find(b => b.name === 'forum-images')
+                if (!forumBucket) {
+                    output.innerHTML = '<p style="color: red;">forum-images bucket not found!</p>'
+                    return
+                }
+                
+                console.log('Forum bucket found:', forumBucket)
+                
+                // Test 2: Try to upload
+                const fileName = `test-${Date.now()}.${file.name.split('.').pop()}`
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('forum-images')
+                    .upload(fileName, file)
+                
+                if (uploadError) {
+                    output.innerHTML = `<p style="color: red;">Upload error: ${uploadError.message}</p>`
+                    console.error('Upload error:', uploadError)
+                    return
+                }
+                
+                console.log('Upload successful:', uploadData)
+                
+                // Test 3: Get public URL
+                const { data: urlData } = supabase.storage
+                    .from('forum-images')
+                    .getPublicUrl(fileName)
+                
+                console.log('Public URL:', urlData.publicUrl)
+                
+                output.innerHTML = `
+                    <p style="color: green;">✅ Upload successful!</p>
+                    <p><strong>File:</strong> ${fileName}</p>
+                    <p><strong>URL:</strong> <a href="${urlData.publicUrl}" target="_blank">${urlData.publicUrl}</a></p>
+                    <img src="${urlData.publicUrl}" style="max-width: 200px; margin-top: 10px;">
+                `
+                
+            } catch (error) {
+                output.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`
+                console.error('Test error:', error)
+            }
+        }
+    </script>
+</body>
+</html>

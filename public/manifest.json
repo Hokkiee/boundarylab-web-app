@@ -1,0 +1,33 @@
+{
+  "name": "BoundaryLab",
+  "short_name": "BoundaryLab",
+  "description": "Empowering young adults to identify, define, and reinforce personal boundaries through education and community-led learning.",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#e4a9bd",
+  "background_color": "#fffbf3",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "lifestyle", "health"],
+  "lang": "en-US"
+}

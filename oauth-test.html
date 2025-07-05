@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Test - BoundaryLab</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #3367d6;
+        }
+        .log {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 BoundaryLab OAuth Test</h1>
+        <p>This page tests your Google OAuth configuration outside of the React app.</p>
+        
+        <h3>Environment Info:</h3>
+        <div class="log" id="envInfo"></div>
+        
+        <h3>Test Actions:</h3>
+        <button onclick="testSupabaseConnection()">Test Supabase Connection</button>
+        <button onclick="testSimpleAuth()">Test Simple Auth</button>
+        <button onclick="checkOAuthConfig()">Check OAuth Config</button>
+        <button onclick="testActualOAuth()">✨ Test ACTUAL OAuth (Real Test)</button>
+        <button onclick="debugOAuthFlow()">Debug OAuth Flow</button>
+        <button onclick="checkSession()">Check Current Session</button>
+        <button onclick="clearLogs()">Clear Logs</button>
+        
+        <h3>Test Results:</h3>
+        <div class="log" id="logs"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js'
+        
+        // Your Supabase credentials - make sure these match your .env file
+        const supabaseUrl = 'https://ydwemzpbtawiairfysdi.supabase.co'
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlkd2VtenBidGF3aWFpcmZ5c2RpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE2NzUxODEsImV4cCI6MjA2NzI1MTE4MX0.8Q9EMgXUImpqiURET0XzFaWwDTfjao4fFIAt2NJRaLA'
+        
+        // Debug credentials
+        console.log('Supabase URL:', supabaseUrl)
+        console.log('Supabase Anon Key length:', supabaseAnonKey?.length)
+        console.log('Supabase Anon Key (first 20 chars):', supabaseAnonKey?.substring(0, 20) + '...')
+        
+        const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+                autoRefreshToken: true,
+                persistSession: true
+            }
+        })
+        
+        function log(message, type = 'info') {
+            const logs = document.getElementById('logs')
+            const timestamp = new Date().toLocaleTimeString()
+            logs.innerHTML += `<span class="${type}">[${timestamp}] ${message}</span>\n`
+            logs.scrollTop = logs.scrollHeight
+        }
+        
+        function showEnvInfo() {
+            const envInfo = document.getElementById('envInfo')
+            const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            const redirectUrl = 'https://www.boundarylab.co/auth/callback'
+            
+            // Validate anon key format
+            const keyValidation = validateAnonKey(supabaseAnonKey)
+            
+            envInfo.innerHTML = `
+🌐 Current URL: ${window.location.href}
+🏠 Origin: ${window.location.origin}
+🚀 Is Development: ${isDevelopment}
+🔄 OAuth Redirect URL: ${redirectUrl} (PRODUCTION)
+📡 Supabase URL: ${supabaseUrl}
+🔑 Has Anon Key: ${supabaseAnonKey ? 'Yes' : 'No'}
+🔍 Key Validation: ${keyValidation.valid ? '✅ Valid JWT' : '❌ Invalid: ' + keyValidation.error}
+⚠️  SETUP: Make sure Supabase Site URL is set to: https://www.boundarylab.co
+⚠️  SETUP: Make sure OAuth Redirect URL is set to: https://www.boundarylab.co/auth/callback
+            `.trim()
+        }
+        
+        function validateAnonKey(key) {
+            if (!key) return { valid: false, error: 'No key provided' }
+            
+            try {
+                const parts = key.split('.')
+                if (parts.length !== 3) return { valid: false, error: 'Not a valid JWT format' }
+                
+                // Try to decode the payload
+                const payload = JSON.parse(atob(parts[1]))
+                
+                // Check if it's expired
+                const now = Date.now() / 1000
+                if (payload.exp && payload.exp < now) {
+                    return { valid: false, error: 'Token has expired' }
+                }
+                
+                // Check if it has the right role
+                if (payload.role !== 'anon') {
+                    return { valid: false, error: 'Not an anon key' }
+                }
+                
+                return { valid: true, payload }
+            } catch (err) {
+                return { valid: false, error: 'Invalid JWT format' }
+            }
+        }
+        
+        window.testActualOAuth = async function() {
+            log('✨ Testing ACTUAL OAuth flow (the real test)...')
+            log('💡 This is the test that matters - can we generate a valid OAuth URL?')
+            
+            try {
+                const { data, error } = await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: 'https://www.boundarylab.co/auth/callback',
+                        skipBrowserRedirect: true
+                    }
+                })
+                
+                if (error) {
+                    log(`❌ REAL TEST FAILED: ${error.message}`, 'error')
+                    log('💡 This means your OAuth is NOT properly configured', 'error')
+                    
+                    // Specific guidance
+                    if (error.message.includes('client_id')) {
+                        log('🔧 FIX: Your Google Client ID is missing in Supabase', 'info')
+                    } else if (error.message.includes('client_secret')) {
+                        log('🔧 FIX: Your Google Client Secret is missing in Supabase', 'info')
+                    } else if (error.message.includes('Provider not found')) {
+                        log('🔧 FIX: Google provider is not enabled in Supabase', 'info')
+                    }
+                } else if (data?.url) {
+                    log('🎉 REAL TEST PASSED! OAuth is working!', 'success')
+                    log(`✅ Generated OAuth URL: ${data.url}`, 'success')
+                    log('✅ Your Google OAuth is properly configured!', 'success')
+                    log('🔗 You can click "Force Google OAuth" to test the full flow', 'info')
+                } else {
+                    log('❌ REAL TEST UNCLEAR: No error but no URL generated', 'error')
+                }
+            } catch (err) {
+                log(`❌ REAL TEST ERROR: ${err.message}`, 'error')
+            }
+        }
+        
+        window.checkOAuthConfig = async function() {
+            log('🔍 Checking OAuth provider configuration...')
+            try {
+                // Try to get the OAuth settings from Supabase
+                const response = await fetch(`${supabaseUrl}/auth/v1/settings`, {
+                    headers: {
+                        'apikey': supabaseAnonKey,
+                        'Authorization': `Bearer ${supabaseAnonKey}`
+                    }
+                })
+                
+                if (response.ok) {
+                    const settings = await response.json()
+                    log('✅ OAuth settings retrieved successfully!', 'success')
+                    log(`📊 OAuth Settings: ${JSON.stringify(settings, null, 2)}`)
+                    
+                    // Check if Google provider is enabled
+                    if (settings.external && settings.external.google) {
+                        log('✅ Google OAuth provider is configured!', 'success')
+                        log(`🔑 Google OAuth enabled: ${settings.external.google.enabled}`)
+                        
+                        // Note: Supabase doesn't expose actual credentials via API for security
+                        log('� Credential Check: Supabase doesn\'t expose actual client_id/secret via API', 'info')
+                        log('💡 The real test is whether OAuth URL generation works', 'info')
+                        
+                        log(`🔄 Google OAuth redirect_uri: ${settings.external.google.redirect_uri || 'Not set'}`)
+                    } else {
+                        log('❌ Google OAuth provider is NOT configured', 'error')
+                        log('💡 You need to configure Google OAuth in Supabase Dashboard > Authentication > Providers > Google', 'info')
+                    }
+                    
+                    // Also check the raw external object
+                    log('🔍 Raw external providers:', 'info')
+                    log(`${JSON.stringify(settings.external, null, 2)}`)
+                } else {
+                    const errorText = await response.text()
+                    log(`❌ Failed to get OAuth settings: ${response.status} - ${errorText}`, 'error')
+                }
+            } catch (err) {
+                log(`❌ OAuth config check error: ${err.message}`, 'error')
+                log(`🔍 Full error: ${JSON.stringify(err, null, 2)}`, 'error')
+            }
+        }
+        
+        window.testSimpleAuth = async function() {
+            log('🔐 Testing basic auth endpoint...')
+            try {
+                // First test: Check if we can reach the auth endpoint
+                const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+                    headers: {
+                        'apikey': supabaseAnonKey,
+                        'Authorization': `Bearer ${supabaseAnonKey}`
+                    }
+                })
+                
+                log(`📡 Direct API response status: ${response.status}`)
+                
+                if (response.ok) {
+                    const data = await response.json()
+                    log('✅ Direct API call successful!', 'success')
+                    log(`📊 API Response: ${JSON.stringify(data, null, 2)}`)
+                } else {
+                    const errorText = await response.text()
+                    log(`❌ Direct API call failed: ${response.status} - ${errorText}`, 'error')
+                }
+                
+                // Second test: Use Supabase client
+                const { data, error } = await supabase.auth.getSession()
+                if (error) {
+                    log(`❌ Supabase client auth test failed: ${error.message}`, 'error')
+                    log(`🔍 Error code: ${error.status}`, 'error')
+                } else {
+                    log('✅ Supabase client auth endpoint accessible!', 'success')
+                    log(`📊 Session data: ${data.session ? 'Has session' : 'No session'}`)
+                }
+            } catch (err) {
+                log(`❌ Auth test error: ${err.message}`, 'error')
+                log(`🔍 Full error: ${JSON.stringify(err, null, 2)}`, 'error')
+            }
+        }
+        
+        window.testSupabaseConnection = async function() {
+            log('🔍 Testing Supabase connection...')
+            log(`🔑 Using API key: ${supabaseAnonKey.substring(0, 20)}...`)
+            log(`📡 Connecting to: ${supabaseUrl}`)
+            
+            try {
+                // First test: Simple health check
+                const { data, error } = await supabase.from('profiles').select('count').limit(1)
+                
+                if (error) {
+                    log(`❌ Supabase connection failed: ${error.message}`, 'error')
+                    log(`🔍 Error details: ${JSON.stringify(error, null, 2)}`, 'error')
+                    
+                    // Additional debugging
+                    if (error.message.includes('No API key')) {
+                        log('💡 Suggestion: Check if your Supabase anon key is correct', 'info')
+                        log('💡 Suggestion: Verify your Supabase URL is correct', 'info')
+                    }
+                } else {
+                    log('✅ Supabase connection successful!', 'success')
+                    log(`📊 Response: ${JSON.stringify(data, null, 2)}`)
+                }
+            } catch (err) {
+                log(`❌ Supabase connection error: ${err.message}`, 'error')
+                log(`🔍 Full error: ${JSON.stringify(err, null, 2)}`, 'error')
+            }
+        }
+        
+        window.debugOAuthFlow = async function() {
+            log('🔍 Debugging OAuth flow step by step...')
+            
+            // Step 1: Check if Google provider is available
+            log('Step 1: Testing provider availability...')
+            try {
+                const { data, error } = await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: 'https://www.boundarylab.co/auth/callback',
+                        skipBrowserRedirect: true  // This prevents actual redirect
+                    }
+                })
+                
+                if (error) {
+                    log(`❌ Provider test failed: ${error.message}`, 'error')
+                    
+                    // Specific error analysis
+                    if (error.message.includes('Provider not found')) {
+                        log('💡 Google provider is not configured in Supabase', 'info')
+                    } else if (error.message.includes('disabled')) {
+                        log('💡 Google provider is disabled', 'info')
+                    } else if (error.message.includes('client_id')) {
+                        log('💡 Google Client ID is missing or invalid', 'info')
+                    } else if (error.message.includes('client_secret')) {
+                        log('💡 Google Client Secret is missing or invalid', 'info')
+                    } else if (error.message.includes('redirect_uri')) {
+                        log('💡 Redirect URI mismatch', 'info')
+                    }
+                } else {
+                    log('✅ Provider test passed!', 'success')
+                    log(`🔗 OAuth URL generated: ${data.url ? 'Yes' : 'No'}`)
+                    if (data.url) {
+                        log(`📋 OAuth URL: ${data.url}`)
+                    }
+                }
+            } catch (err) {
+                log(`❌ Provider test error: ${err.message}`, 'error')
+            }
+            
+            // Step 2: Test direct API call to OAuth endpoint
+            log('Step 2: Testing OAuth endpoint directly...')
+            try {
+                const response = await fetch(`${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=https://www.boundarylab.co/auth/callback`, {
+                    headers: {
+                        'apikey': supabaseAnonKey,
+                        'Authorization': `Bearer ${supabaseAnonKey}`
+                    }
+                })
+                
+                log(`📡 Direct OAuth endpoint status: ${response.status}`)
+                
+                if (response.ok) {
+                    log('✅ OAuth endpoint is accessible', 'success')
+                } else {
+                    const errorText = await response.text()
+                    log(`❌ OAuth endpoint failed: ${response.status} - ${errorText}`, 'error')
+                }
+            } catch (err) {
+                log(`❌ OAuth endpoint test error: ${err.message}`, 'error')
+            }
+            
+            log('🔍 Debug complete. Check results above for issues.')
+        }
+        
+        window.clearLogs = function() {
+            document.getElementById('logs').innerHTML = ''
+        }
+        
+        // Initialize
+        showEnvInfo()
+        log('🎯 OAuth Test Page loaded successfully')
+        log('💡 Click "Test Supabase Connection" first, then "Test Google OAuth"')
+    </script>
+</body>
+</html>
